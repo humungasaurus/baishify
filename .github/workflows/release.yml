@@ -143,26 +143,20 @@ jobs:
 
       - name: Push formula to tap via API
         env:
-          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
           CONTENT=$(base64 -w 0 /tmp/baishify.rb)
 
           # Check if file already exists (to get its SHA for updates)
-          EXISTING_SHA=$(curl -sf \
-            -H "Authorization: token ${TAP_GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/humungasaurus/homebrew-tap/contents/Formula/baishify.rb" \
-            | jq -r '.sha // empty') || true
+          EXISTING_SHA=$(gh api "repos/humungasaurus/homebrew-tap/contents/Formula/baishify.rb" --jq '.sha' 2>/dev/null) || true
 
-          JSON_PAYLOAD=$(jq -n \
-            --arg message "Update baishify to ${VERSION}" \
-            --arg content "$CONTENT" \
-            --arg sha "$EXISTING_SHA" \
-            '{message: $message, content: $content} + (if $sha != "" then {sha: $sha} else {} end)')
-
-          curl -sf \
-            -X PUT \
-            -H "Authorization: token ${TAP_GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/humungasaurus/homebrew-tap/contents/Formula/baishify.rb" \
-            -d "$JSON_PAYLOAD"
+          if [ -n "$EXISTING_SHA" ]; then
+            gh api -X PUT "repos/humungasaurus/homebrew-tap/contents/Formula/baishify.rb" \
+              -f message="Update baishify to ${VERSION}" \
+              -f content="$CONTENT" \
+              -f sha="$EXISTING_SHA"
+          else
+            gh api -X PUT "repos/humungasaurus/homebrew-tap/contents/Formula/baishify.rb" \
+              -f message="Update baishify to ${VERSION}" \
+              -f content="$CONTENT"
+          fi
