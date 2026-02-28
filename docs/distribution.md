@@ -8,12 +8,12 @@
 
 ## Homebrew Strategy
 
-Use a dedicated tap repo (for example `danielhostetler/homebrew-tap`) with formula name `baishify`.
+Use a dedicated tap repo (`humungasaurus/homebrew-tap`) with formula name `baishify`.
 
 Install command for users:
 
 ```bash
-brew tap danielhostetler/tap
+brew tap humungasaurus/tap
 brew install baishify
 ```
 
@@ -21,41 +21,57 @@ The formula should install the binary as `b`.
 
 ### Formula template
 
+The formula uses prebuilt binaries from GitHub Releases (no Rust toolchain required on the user's machine):
+
 ```ruby
 class Baishify < Formula
   desc "Prompt-to-bash CLI"
-  homepage "https://github.com/danielhostetler/baishify"
-  url "https://github.com/danielhostetler/baishify/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "REPLACE_WITH_SHA256"
+  homepage "https://github.com/humungasaurus/baishify"
   license "MIT"
+  version "VERSION"
 
-  depends_on "rust" => :build
+  on_macos do
+    if Hardware::CPU.arm?
+      url "https://github.com/humungasaurus/baishify/releases/download/VERSION/baishify-VERSION-aarch64-apple-darwin.tar.gz"
+      sha256 "REPLACE_WITH_SHA256"
+    else
+      url "https://github.com/humungasaurus/baishify/releases/download/VERSION/baishify-VERSION-x86_64-apple-darwin.tar.gz"
+      sha256 "REPLACE_WITH_SHA256"
+    end
+  end
+
+  on_linux do
+    if Hardware::CPU.arm?
+      url "https://github.com/humungasaurus/baishify/releases/download/VERSION/baishify-VERSION-aarch64-unknown-linux-gnu.tar.gz"
+      sha256 "REPLACE_WITH_SHA256"
+    else
+      url "https://github.com/humungasaurus/baishify/releases/download/VERSION/baishify-VERSION-x86_64-unknown-linux-gnu.tar.gz"
+      sha256 "REPLACE_WITH_SHA256"
+    end
+  end
 
   def install
-    system "cargo", "install", *std_cargo_args
+    bin.install "b"
   end
 
   test do
-    output = shell_output("#{bin}/b --help")
-    assert_match "prompt to bash command", output
+    assert_match "baishify", shell_output("#{bin}/b --help")
   end
 end
 ```
 
-Note: many maintainers prefer release artifacts over source builds in formulae for faster installs.
+## Release Automation
 
-## Release Automation (suggested)
+Handled by `.github/workflows/release.yml`, triggered on `v*` tag pushes:
 
-1. Tag release (`vX.Y.Z`).
-2. CI builds binaries for:
-   - `aarch64-apple-darwin`
-   - `x86_64-apple-darwin`
-   - `x86_64-unknown-linux-gnu`
-   - `aarch64-unknown-linux-gnu`
-3. Publish checksums.
-4. Open automated PR to tap repo updating formula URL + SHA256.
+1. **Build job** — cross-compiles for 4 targets:
+   - `aarch64-apple-darwin` (macOS ARM, native on `macos-latest`)
+   - `x86_64-apple-darwin` (macOS Intel, native on `macos-13`)
+   - `x86_64-unknown-linux-gnu` (Linux x86, native on `ubuntu-latest`)
+   - `aarch64-unknown-linux-gnu` (Linux ARM, via `cross` on `ubuntu-latest`)
+2. **Release job** — creates a GitHub Release with all 4 tarballs attached.
+3. **Update-tap job** — downloads assets, computes SHA256s, updates the Homebrew formula in `humungasaurus/homebrew-tap`, and pushes.
 
-Tools commonly used:
-- `goreleaser` (works for Rust via custom builds)
-- `cargo-dist`
-- `release-plz`
+### Required secrets
+
+- `TAP_GITHUB_TOKEN` — fine-grained PAT scoped to `humungasaurus/homebrew-tap` with Contents read/write permission.

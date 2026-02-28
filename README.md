@@ -7,10 +7,17 @@ It is designed for one job: fast prompt-to-command generation with a fun but tra
 ## Install
 
 ```bash
-cargo install --path .
+brew tap humungasaurus/tap
+brew install baishify
 ```
 
 This installs the executable as `b`.
+
+### From source (requires Rust)
+
+```bash
+cargo install --path .
+```
 
 ## Quick Start
 

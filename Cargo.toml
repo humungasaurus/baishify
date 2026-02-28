@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "Terminal-native prompt-to-bash command generator"
 license = "MIT"
-repository = "https://github.com/danielhostetler/baishify"
+repository = "https://github.com/humungasaurus/baishify"
 
 [[bin]]
 name = "b"
