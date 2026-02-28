@@ -1,6 +1,6 @@
-# b
+# baishify
 
-`b` is a terminal-native CLI that turns a text prompt into a single bash command.
+`baishify` is a terminal-native CLI that turns a text prompt into a single bash command.
 
 It is designed for one job: fast prompt-to-command generation with a fun but transparent interactive UX.
 
