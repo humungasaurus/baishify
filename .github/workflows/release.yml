@@ -102,39 +102,32 @@ jobs:
 
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
 
-      - name: Clone tap repo
-        env:
-          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+      - name: Generate formula content
         run: |
-          git clone "https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/humungasaurus/homebrew-tap.git" tap
-          mkdir -p tap/Formula
-
-      - name: Write formula
-        run: |
-          cat > tap/Formula/baishify.rb << 'FORMULA'
+          cat > /tmp/baishify.rb << EOF
           class Baishify < Formula
             desc "Prompt-to-bash CLI"
             homepage "https://github.com/humungasaurus/baishify"
             license "MIT"
-            version "VERSION_PLACEHOLDER"
+            version "${VERSION}"
 
             on_macos do
               if Hardware::CPU.arm?
-                url "https://github.com/humungasaurus/baishify/releases/download/VERSION_PLACEHOLDER/baishify-VERSION_PLACEHOLDER-aarch64-apple-darwin.tar.gz"
-                sha256 "SHA_AARCH64_APPLE_DARWIN_PLACEHOLDER"
+                url "https://github.com/humungasaurus/baishify/releases/download/${VERSION}/baishify-${VERSION}-aarch64-apple-darwin.tar.gz"
+                sha256 "${SHA_aarch64_apple_darwin}"
               else
-                url "https://github.com/humungasaurus/baishify/releases/download/VERSION_PLACEHOLDER/baishify-VERSION_PLACEHOLDER-x86_64-apple-darwin.tar.gz"
-                sha256 "SHA_X86_64_APPLE_DARWIN_PLACEHOLDER"
+                url "https://github.com/humungasaurus/baishify/releases/download/${VERSION}/baishify-${VERSION}-x86_64-apple-darwin.tar.gz"
+                sha256 "${SHA_x86_64_apple_darwin}"
               end
             end
 
             on_linux do
               if Hardware::CPU.arm?
-                url "https://github.com/humungasaurus/baishify/releases/download/VERSION_PLACEHOLDER/baishify-VERSION_PLACEHOLDER-aarch64-unknown-linux-gnu.tar.gz"
-                sha256 "SHA_AARCH64_UNKNOWN_LINUX_GNU_PLACEHOLDER"
+                url "https://github.com/humungasaurus/baishify/releases/download/${VERSION}/baishify-${VERSION}-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "${SHA_aarch64_unknown_linux_gnu}"
               else
-                url "https://github.com/humungasaurus/baishify/releases/download/VERSION_PLACEHOLDER/baishify-VERSION_PLACEHOLDER-x86_64-unknown-linux-gnu.tar.gz"
-                sha256 "SHA_X86_64_UNKNOWN_LINUX_GNU_PLACEHOLDER"
+                url "https://github.com/humungasaurus/baishify/releases/download/${VERSION}/baishify-${VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "${SHA_x86_64_unknown_linux_gnu}"
               end
             end
 
@@ -146,22 +139,30 @@ jobs:
               assert_match "baishify", shell_output("#{bin}/b --help")
             end
           end
-          FORMULA
+          EOF
 
-          # Replace placeholders with actual values
-          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" tap/Formula/baishify.rb
-          sed -i "s/SHA_AARCH64_APPLE_DARWIN_PLACEHOLDER/${SHA_aarch64_apple_darwin}/g" tap/Formula/baishify.rb
-          sed -i "s/SHA_X86_64_APPLE_DARWIN_PLACEHOLDER/${SHA_x86_64_apple_darwin}/g" tap/Formula/baishify.rb
-          sed -i "s/SHA_AARCH64_UNKNOWN_LINUX_GNU_PLACEHOLDER/${SHA_aarch64_unknown_linux_gnu}/g" tap/Formula/baishify.rb
-          sed -i "s/SHA_X86_64_UNKNOWN_LINUX_GNU_PLACEHOLDER/${SHA_x86_64_unknown_linux_gnu}/g" tap/Formula/baishify.rb
-
-      - name: Push to tap
+      - name: Push formula to tap via API
         env:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
-          cd tap
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/baishify.rb
-          git commit -m "Update baishify to ${VERSION}"
-          git push
+          CONTENT=$(base64 -w 0 /tmp/baishify.rb)
+
+          # Check if file already exists (to get its SHA for updates)
+          EXISTING_SHA=$(curl -sf \
+            -H "Authorization: token ${TAP_GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/humungasaurus/homebrew-tap/contents/Formula/baishify.rb" \
+            | jq -r '.sha // empty') || true
+
+          JSON_PAYLOAD=$(jq -n \
+            --arg message "Update baishify to ${VERSION}" \
+            --arg content "$CONTENT" \
+            --arg sha "$EXISTING_SHA" \
+            '{message: $message, content: $content} + (if $sha != "" then {sha: $sha} else {} end)')
+
+          curl -sf \
+            -X PUT \
+            -H "Authorization: token ${TAP_GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/humungasaurus/homebrew-tap/contents/Formula/baishify.rb" \
+            -d "$JSON_PAYLOAD"
